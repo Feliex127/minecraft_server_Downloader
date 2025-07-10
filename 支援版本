@@ -1,0 +1,11 @@
+服务器类型   	支持版本范围	        版本获取方式
+Vanilla	      1.0 ~ 最新正式版		  Mojang官方版本清单
+Paper	        1.8.8 ~ 最新版	     	PaperMC API (含构建版本号)
+Fabric	      1.14 ~ 最新版	  	  Fabric元数据API
+
+
+
+
+Vanilla 版本清单 : https://launchermeta.mojang.com/mc/game/version_manifest.json
+Fabric  版本清单 : https://meta.fabricmc.net/v2/versions/game
+Paper   版本清单 : https://api.papermc.io/v2/projects/paper
