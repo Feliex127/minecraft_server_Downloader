@@ -5,76 +5,25 @@ from tkinter import ttk, messagebox, filedialog
 from threading import Thread, Event
 import webbrowser
 import sys
+import json
+from pathlib import Path
+import locale
 
 class MinecraftServerDownloader:
     def __init__(self, root):
         self.root = root
         
-        # 多語言支援
+        # 语言配置和显示名称
+        self.language_options = {
+            "en": {"name": "English", "flag": "🇬🇧"},
+            "zh_CN": {"name": "简体中文", "flag": "🇨🇳"},
+            "zh_TW": {"name": "繁體中文", "flag": "🇹🇼"},
+            "ja": {"name": "日本語", "flag": "🇯🇵"},
+            "ko": {"name": "한국어", "flag": "🇰🇷"}
+        }
+        
+        # 多语言支持
         self.languages = {
-            #繁體中文
-            "zh_TW": {
-                "title": "Minecraft 伺服器下載器",
-                "server_type": "伺服器類型:",
-                "version": "Minecraft 版本:",
-                "download_path": "下載路徑:",
-                "browse": "瀏覽",
-                "server_name": "伺服器名稱:",
-                "memory": "分配記憶體 (如 4G):",
-                "eula": "我同意 Minecraft EULA",
-                "eula_link": "(查看EULA條款)",
-                "download_btn": "下載伺服器",
-                "cancel_btn": "取消下載",
-                "ready": "準備就緒",
-                "fetching": "獲取版本列表中...",
-                "versions_found": "找到 {} 個版本",
-                "no_versions": "未找到可用版本",
-                "downloading": "下載中...",
-                "download_complete": "下載完成！伺服器已保存到:\n{}",
-                "run_server": "雙擊 start.bat 啟動伺服器",
-                "error": "錯誤",
-                "canceled": "下載已取消",
-                "copyright": "© 2023 Minecraft 伺服器下載器 | 支援: Vanilla/Paper/Fabric",
-                "select_version": "請選擇Minecraft版本",
-                "select_path": "請選擇下載路徑",
-                "accept_eula": "必須同意Minecraft EULA才能下載",
-                "download_failed": "下載失敗: {}",
-                "connection_error": "網絡錯誤: {}",
-                "file_not_saved": "文件未正確保存",
-                "empty_file": "下載的文件為空"
-            },
-            #簡體中文
-            "zh_CN": {
-                "title": "Minecraft 服务器下载器",
-                "server_type": "服务器类型:",
-                "version": "Minecraft 版本:",
-                "download_path": "下载路径:",
-                "browse": "浏览",
-                "server_name": "服务器名称:",
-                "memory": "分配内存 (如 4G):",
-                "eula": "我同意 Minecraft EULA",
-                "eula_link": "(查看EULA条款)",
-                "download_btn": "下载服务器",
-                "cancel_btn": "取消下载",
-                "ready": "准备就绪",
-                "fetching": "获取版本列表中...",
-                "versions_found": "找到 {} 个版本",
-                "no_versions": "未找到可用版本",
-                "downloading": "下载中...",
-                "download_complete": "下载完成！服务器已保存到:\n{}",
-                "run_server": "双击 start.bat 启动服务器",
-                "error": "错误",
-                "canceled": "下载已取消",
-                "copyright": "© 2023 Minecraft 服务器下载器 | 支持: Vanilla/Paper/Fabric",
-                "select_version": "请选择Minecraft版本",
-                "select_path": "请选择下载路径",
-                "accept_eula": "必须同意Minecraft EULA才能下载",
-                "download_failed": "下载失败: {}",
-                "connection_error": "网络错误: {}",
-                "file_not_saved": "文件未正确保存",
-                "empty_file": "下载的文件为空"
-            },
-            #英文
             "en": {
                 "title": "Minecraft Server Downloader",
                 "server_type": "Server Type:",
@@ -103,17 +52,255 @@ class MinecraftServerDownloader:
                 "download_failed": "Download failed: {}",
                 "connection_error": "Connection error: {}",
                 "file_not_saved": "File not saved correctly",
-                "empty_file": "Downloaded file is empty"
-            
+                "empty_file": "Downloaded file is empty",
+                "server_settings": "Server Settings",
+                "online_mode": "Online Mode:",
+                "server_port": "Server Port:",
+                "default_gamemode": "Default Gamemode:",
+                "difficulty": "Difficulty:",
+                "gamemodes": ["Survival", "Creative", "Adventure", "Spectator"],
+                "difficulties": ["Peaceful", "Easy", "Normal", "Hard"],
+                "port_error": "Port must be between 1 and 65535",
+                "language": "Language:",
+                "vanilla": "Vanilla",
+                "paper": "Paper",
+                "fabric": "Fabric",
+                "server_type_options": ["Vanilla", "Paper", "Fabric"]
+            },
+            "zh_CN": {
+                "title": "Minecraft 服务器下载器",
+                "server_type": "服务器类型:",
+                "version": "Minecraft 版本:",
+                "download_path": "下载路径:",
+                "browse": "浏览",
+                "server_name": "服务器名称:",
+                "memory": "分配内存 (如 4G):",
+                "eula": "我同意 Minecraft EULA",
+                "eula_link": "(查看EULA条款)",
+                "download_btn": "下载服务器",
+                "cancel_btn": "取消下载",
+                "ready": "准备就绪",
+                "fetching": "获取版本列表中...",
+                "versions_found": "找到 {} 个版本",
+                "no_versions": "未找到可用版本",
+                "downloading": "下载中...",
+                "download_complete": "下载完成！服务器已保存到:\n{}",
+                "run_server": "双击 start.bat 启动服务器",
+                "error": "错误",
+                "canceled": "下载已取消",
+                "copyright": "© 2023 Minecraft 服务器下载器 | 支持: Vanilla/Paper/Fabric",
+                "select_version": "请选择Minecraft版本",
+                "select_path": "请选择下载路径",
+                "accept_eula": "必须同意Minecraft EULA才能下载",
+                "download_failed": "下载失败: {}",
+                "connection_error": "网络错误: {}",
+                "file_not_saved": "文件未正确保存",
+                "empty_file": "下载的文件为空",
+                "server_settings": "服务器设置",
+                "online_mode": "正版验证:",
+                "server_port": "服务器端口:",
+                "default_gamemode": "默认游戏模式:",
+                "difficulty": "游戏难度:",
+                "gamemodes": ["生存", "创造", "冒险", "旁观"],
+                "difficulties": ["和平", "简单", "普通", "困难"],
+                "port_error": "端口必须是1-65535之间的数字",
+                "language": "语言:",
+                "vanilla": "原版",
+                "paper": "Paper",
+                "fabric": "Fabric",
+                "server_type_options": ["原版", "Paper", "Fabric"]
+            },
+            "zh_TW": {
+                "title": "Minecraft 伺服器下載器",
+                "server_type": "伺服器類型:",
+                "version": "Minecraft 版本:",
+                "download_path": "下載路徑:",
+                "browse": "瀏覽",
+                "server_name": "伺服器名稱:",
+                "memory": "分配記憶體 (如 4G):",
+                "eula": "我同意 Minecraft EULA",
+                "eula_link": "(查看EULA條款)",
+                "download_btn": "下載伺服器",
+                "cancel_btn": "取消下載",
+                "ready": "準備就緒",
+                "fetching": "獲取版本列表中...",
+                "versions_found": "找到 {} 個版本",
+                "no_versions": "未找到可用版本",
+                "downloading": "下載中...",
+                "download_complete": "下載完成！伺服器已保存到:\n{}",
+                "run_server": "雙擊 start.bat 啟動伺服器",
+                "error": "錯誤",
+                "canceled": "下載已取消",
+                "copyright": "© 2023 Minecraft 伺服器下載器 | 支援: Vanilla/Paper/Fabric",
+                "select_version": "請選擇Minecraft版本",
+                "select_path": "請選擇下載路徑",
+                "accept_eula": "必須同意Minecraft EULA才能下載",
+                "download_failed": "下載失敗: {}",
+                "connection_error": "網絡錯誤: {}",
+                "file_not_saved": "文件未正確保存",
+                "empty_file": "下載的文件為空",
+                "server_settings": "伺服器設定",
+                "online_mode": "正版驗證:",
+                "server_port": "伺服器端口:",
+                "default_gamemode": "預設遊戲模式:",
+                "difficulty": "遊戲難度:",
+                "gamemodes": ["生存", "創造", "冒險", "旁觀"],
+                "difficulties": ["和平", "簡單", "普通", "困難"],
+                "port_error": "端口必須是1-65535之間的數字",
+                "language": "語言:",
+                "vanilla": "原版",
+                "paper": "Paper",
+                "fabric": "Fabric",
+                "server_type_options": ["原版", "Paper", "Fabric"]
+            },
+            "ja": {
+                "title": "Minecraft サーバーダウンローダー",
+                "server_type": "サーバータイプ:",
+                "version": "Minecraft バージョン:",
+                "download_path": "ダウンロードパス:",
+                "browse": "参照",
+                "server_name": "サーバー名:",
+                "memory": "メモリ割り当て (例: 4G):",
+                "eula": "Minecraft EULAに同意します",
+                "eula_link": "(EULAを表示)",
+                "download_btn": "サーバーをダウンロード",
+                "cancel_btn": "ダウンロードをキャンセル",
+                "ready": "準備完了",
+                "fetching": "バージョンリストを取得中...",
+                "versions_found": "{} バージョンが見つかりました",
+                "no_versions": "利用可能なバージョンが見つかりません",
+                "downloading": "ダウンロード中...",
+                "download_complete": "ダウンロード完了！保存先:\n{}",
+                "run_server": "start.batをダブルクリックしてサーバーを起動",
+                "error": "エラー",
+                "canceled": "ダウンロードがキャンセルされました",
+                "copyright": "© 2023 Minecraft サーバーダウンローダー | 対応: Vanilla/Paper/Fabric",
+                "select_version": "Minecraftバージョンを選択してください",
+                "select_path": "ダウンロードパスを選択してください",
+                "accept_eula": "ダウンロードするにはMinecraft EULAに同意する必要があります",
+                "download_failed": "ダウンロード失敗: {}",
+                "connection_error": "接続エラー: {}",
+                "file_not_saved": "ファイルが正しく保存されませんでした",
+                "empty_file": "ダウンロードしたファイルが空です",
+                "server_settings": "サーバー設定",
+                "online_mode": "オンラインモード:",
+                "server_port": "サーバーポート:",
+                "default_gamemode": "デフォルトゲームモード:",
+                "difficulty": "難易度:",
+                "gamemodes": ["サバイバル", "クリエイティブ", "アドベンチャー", "スペクテイター"],
+                "difficulties": ["ピースフル", "イージー", "ノーマル", "ハード"],
+                "port_error": "ポートは1から65535の間で指定してください",
+                "language": "言語:",
+                "vanilla": "バニラ",
+                "paper": "Paper",
+                "fabric": "Fabric",
+                "server_type_options": ["バニラ", "Paper", "Fabric"]
+            },
+            "ko": {
+                "title": "마인크래프트 서버 다운로더",
+                "server_type": "서버 유형:",
+                "version": "마인크래프트 버전:",
+                "download_path": "다운로드 경로:",
+                "browse": "찾아보기",
+                "server_name": "서버 이름:",
+                "memory": "메모리 할당 (예: 4G):",
+                "eula": "Minecraft EULA에 동의합니다",
+                "eula_link": "(EULA 보기)",
+                "download_btn": "서버 다운로드",
+                "cancel_btn": "다운로드 취소",
+                "ready": "준비 완료",
+                "fetching": "버전 목록 가져오는 중...",
+                "versions_found": "{} 버전을 찾았습니다",
+                "no_versions": "사용 가능한 버전을 찾을 수 없습니다",
+                "downloading": "다운로드 중...",
+                "download_complete": "다운로드 완료! 저장 위치:\n{}",
+                "run_server": "start.bat을 더블 클릭하여 서버 실행",
+                "error": "오류",
+                "canceled": "다운로드가 취소되었습니다",
+                "copyright": "© 2023 마인크래프트 서버 다운로더 | 지원: Vanilla/Paper/Fabric",
+                "select_version": "마인크래프트 버전을 선택하세요",
+                "select_path": "다운로드 경로를 선택하세요",
+                "accept_eula": "다운로드하려면 Minecraft EULA에 동의해야 합니다",
+                "download_failed": "다운로드 실패: {}",
+                "connection_error": "연결 오류: {}",
+                "file_not_saved": "파일이 올바르게 저장되지 않았습니다",
+                "empty_file": "다운로드한 파일이 비어 있습니다",
+                "server_settings": "서버 설정",
+                "online_mode": "온라인 모드:",
+                "server_port": "서버 포트:",
+                "default_gamemode": "기본 게임 모드:",
+                "difficulty": "난이도:",
+                "gamemodes": ["생존", "창조", "모험", "관전"],
+                "difficulties": ["평화로움", "쉬움", "보통", "어려움"],
+                "port_error": "포트는 1에서 65535 사이여야 합니다",
+                "language": "언어:",
+                "vanilla": "바닐라",
+                "paper": "Paper",
+                "fabric": "Fabric",
+                "server_type_options": ["바닐라", "Paper", "Fabric"]
             }
         }
-
-        # 預設繁體中文
-        self.current_lang = "zh_TW"
+        
+        # 嘗試加載用戶語言設置
+        self.config_file = Path.home() / ".minecraft_server_downloader_config.json"
+        self.load_config()
+        
+        # 如果配置中沒有語言設置或語言不支持，使用系統語言
+        if not hasattr(self, 'current_lang') or self.current_lang not in self.languages:
+            self.detect_system_language()
+        
         self.lang = self.languages[self.current_lang]
         
+        # 初始化UI
+        self.init_ui()
+    
+    def detect_system_language(self):
+        """檢測系統語言並設置最接近的語言"""
+        try:
+            sys_lang = locale.getdefaultlocale()[0]
+            if sys_lang:
+                # 嘗試匹配最接近的語言
+                if sys_lang.startswith('zh'):
+                    if 'TW' in sys_lang or 'HK' in sys_lang or 'MO' in sys_lang:
+                        self.current_lang = 'zh_TW'
+                    else:
+                        self.current_lang = 'zh_CN'
+                elif sys_lang.startswith('ja'):
+                    self.current_lang = 'ja'
+                elif sys_lang.startswith('ko'):
+                    self.current_lang = 'ko'
+                else:
+                    # 默認英語
+                    self.current_lang = 'en'
+            else:
+                self.current_lang = 'en'
+        except:
+            self.current_lang = 'en'
+    
+    def load_config(self):
+        """加載用戶配置"""
+        try:
+            if self.config_file.exists():
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    if 'language' in config and config['language'] in self.languages:
+                        self.current_lang = config['language']
+        except:
+            pass
+    
+    def save_config(self):
+        """保存用戶配置"""
+        try:
+            config = {'language': self.current_lang}
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except:
+            pass
+    
+    def init_ui(self):
+        """初始化用戶界面"""
         self.root.title(self.lang["title"])
-        self.root.geometry("720x700")
+        self.root.geometry("750x800")
         self.root.resizable(False, False)
         
         # 取消下載事件
@@ -121,9 +308,9 @@ class MinecraftServerDownloader:
         
         # 伺服器類型和獲取函數映射
         self.server_types = {
-            "Vanilla": self.get_vanilla_url,
-            "Paper": self.get_paper_url,
-            "Fabric": self.get_fabric_url
+            self.lang["vanilla"]: self.get_vanilla_url,
+            self.lang["paper"]: self.get_paper_url,
+            self.lang["fabric"]: self.get_fabric_url
         }
         
         # 變數初始化
@@ -133,6 +320,10 @@ class MinecraftServerDownloader:
         self.memory = tk.StringVar(value="4G")
         self.server_name = tk.StringVar(value="minecraft_server")
         self.eula = tk.BooleanVar(value=False)
+        self.online_mode = tk.BooleanVar(value=True)
+        self.server_port = tk.StringVar(value="25565")
+        self.gamemode = tk.StringVar(value="0")
+        self.difficulty = tk.StringVar(value="1")
         self.downloading = False
         
         # UI元素引用
@@ -140,15 +331,9 @@ class MinecraftServerDownloader:
         
         self.setup_ui()
         self.set_default_path()
-
-    def set_default_path(self):
-        """設置預設下載路徑（桌面/Minecraft_Servers）"""
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        server_dir = os.path.join(desktop, "Minecraft_Servers")
-        self.download_path.set(server_dir)
-
+    
     def setup_ui(self):
-        """初始化用戶界面"""
+        """設置用戶界面"""
         style = ttk.Style()
         style.configure('TButton', font=('Microsoft YaHei', 10))
         style.configure('Title.TLabel', font=('Microsoft YaHei', 12, 'bold'))
@@ -161,12 +346,25 @@ class MinecraftServerDownloader:
         lang_frame = ttk.Frame(main_frame)
         lang_frame.grid(row=0, column=1, sticky=tk.E, pady=(0, 10))
         
-        self.lang_var = tk.StringVar(value=self.current_lang)
-        lang_menu = ttk.OptionMenu(lang_frame, self.lang_var, self.current_lang, *self.languages.keys(), 
-                                 command=self.change_language)
-        lang_menu.pack(side=tk.RIGHT)
-        self.ui_elements["lang_menu"] = lang_menu
-
+        ttk.Label(lang_frame, text=self.lang["language"]).pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 創建語言選擇菜單，顯示友好名稱和國旗
+        self.lang_menu = ttk.Combobox(
+            lang_frame, 
+            values=[f"{self.language_options[code]['flag']} {self.language_options[code]['name']}" 
+                   for code in self.languages if code in self.language_options],
+            state="readonly",
+            width=15
+        )
+        self.lang_menu.pack(side=tk.LEFT)
+        
+        # 設置當前選擇的語言
+        current_lang_text = f"{self.language_options[self.current_lang]['flag']} {self.language_options[self.current_lang]['name']}"
+        self.lang_menu.set(current_lang_text)
+        
+        # 綁定語言選擇事件
+        self.lang_menu.bind("<<ComboboxSelected>>", self.on_language_selected)
+        
         # 標題
         title_label = ttk.Label(
             main_frame, 
@@ -184,13 +382,13 @@ class MinecraftServerDownloader:
         self.server_type_combo = ttk.Combobox(
             main_frame, 
             textvariable=self.selected_server_type, 
-            values=list(self.server_types.keys()),
+            values=self.lang["server_type_options"],
             state="readonly",
             width=25
         )
         self.server_type_combo.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=5)
         self.server_type_combo.bind("<<ComboboxSelected>>", self.update_versions)
-        self.selected_server_type.set(list(self.server_types.keys())[0])
+        self.selected_server_type.set(self.lang["server_type_options"][0])
 
         # 版本選擇
         version_label = ttk.Label(main_frame, text=self.lang["version"])
@@ -233,9 +431,64 @@ class MinecraftServerDownloader:
         
         ttk.Entry(main_frame, textvariable=self.memory, width=35).grid(row=5, column=1, sticky=tk.W, padx=5, pady=5)
 
+        # 服务器设置标题
+        settings_label = ttk.Label(main_frame, text=self.lang["server_settings"], style='Title.TLabel')
+        settings_label.grid(row=6, column=0, columnspan=2, pady=(15, 5), sticky=tk.W)
+        self.ui_elements["settings_label"] = settings_label
+
+        # 正版验证
+        online_mode_label = ttk.Label(main_frame, text=self.lang["online_mode"])
+        online_mode_label.grid(row=7, column=0, sticky=tk.W, pady=5)
+        self.ui_elements["online_mode_label"] = online_mode_label
+        
+        ttk.Checkbutton(
+            main_frame, 
+            text="", 
+            variable=self.online_mode
+        ).grid(row=7, column=1, sticky=tk.W, padx=5, pady=5)
+
+        # 服务器端口
+        port_label = ttk.Label(main_frame, text=self.lang["server_port"])
+        port_label.grid(row=8, column=0, sticky=tk.W, pady=5)
+        self.ui_elements["port_label"] = port_label
+        
+        ttk.Entry(main_frame, textvariable=self.server_port, width=35).grid(row=8, column=1, sticky=tk.W, padx=5, pady=5)
+
+        # 默认游戏模式
+        gamemode_label = ttk.Label(main_frame, text=self.lang["default_gamemode"])
+        gamemode_label.grid(row=9, column=0, sticky=tk.W, pady=5)
+        self.ui_elements["gamemode_label"] = gamemode_label
+        
+        gamemode_combo = ttk.Combobox(
+            main_frame, 
+            textvariable=self.gamemode, 
+            values=[f"{i} - {self.lang['gamemodes'][i]}" for i in range(4)],
+            state="readonly",
+            width=35
+        )
+        gamemode_combo.grid(row=9, column=1, sticky=tk.W, padx=5, pady=5)
+        gamemode_combo.current(0)
+        self.ui_elements["gamemode_combo"] = gamemode_combo
+
+        # 游戏难度
+        difficulty_label = ttk.Label(main_frame, text=self.lang["difficulty"])
+        difficulty_label.grid(row=10, column=0, sticky=tk.W, pady=5)
+        self.ui_elements["difficulty_label"] = difficulty_label
+        
+        difficulty_combo = ttk.Combobox(
+            main_frame, 
+            textvariable=self.difficulty, 
+            values=[f"{i} - {self.lang['difficulties'][i]}" for i in range(4)],
+            state="readonly",
+            width=35
+        )
+        difficulty_combo.grid(row=10, column=1, sticky=tk.W, padx=5, pady=5)
+        difficulty_combo.current(1)
+        self.ui_elements["difficulty_combo"] = difficulty_combo
+
         # EULA 同意
         eula_frame = ttk.Frame(main_frame)
-        eula_frame.grid(row=6, column=0, columnspan=2, sticky=tk.W, pady=5)
+        eula_frame.grid(row=11, column=0, columnspan=2, sticky=tk.W, pady=5)
         
         eula_check = ttk.Checkbutton(
             eula_frame, 
@@ -260,7 +513,7 @@ class MinecraftServerDownloader:
 
         # 按鈕框架
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=7, column=0, columnspan=2, pady=15)
+        button_frame.grid(row=12, column=0, columnspan=2, pady=15)
 
         self.download_btn = ttk.Button(
             button_frame, 
@@ -289,7 +542,7 @@ class MinecraftServerDownloader:
             mode='determinate',
             length=450
         )
-        self.progress.grid(row=8, column=0, columnspan=2, pady=10)
+        self.progress.grid(row=13, column=0, columnspan=2, pady=10)
 
         # 狀態標籤
         self.status_label = ttk.Label(
@@ -298,7 +551,7 @@ class MinecraftServerDownloader:
             foreground="gray",
             wraplength=550
         )
-        self.status_label.grid(row=9, column=0, columnspan=2, sticky=tk.W)
+        self.status_label.grid(row=14, column=0, columnspan=2, sticky=tk.W)
         self.ui_elements["status_label"] = self.status_label
 
         # 版權信息
@@ -307,37 +560,70 @@ class MinecraftServerDownloader:
             text=self.lang["copyright"], 
             foreground="gray"
         )
-        copyright_label.grid(row=10, column=0, columnspan=2, pady=(20, 0))
+        copyright_label.grid(row=15, column=0, columnspan=2, pady=(20, 0))
         self.ui_elements["copyright_label"] = copyright_label
 
         # 初始化版本列表
         self.update_versions()
-
+    
+    def on_language_selected(self, event):
+        """當用戶選擇新語言時調用"""
+        selected_text = self.lang_menu.get()
+        # 從選擇的文本中提取語言代碼
+        for code, info in self.language_options.items():
+            if info['name'] in selected_text and code in self.languages:
+                self.change_language(code)
+                break
+    
     def change_language(self, lang_code):
         """切換語言"""
+        if lang_code == self.current_lang:
+            return
+            
         self.current_lang = lang_code
         self.lang = self.languages[lang_code]
         
-        # 更新所有UI文字
+        # 更新語言選擇框顯示
+        current_lang_text = f"{self.language_options[lang_code]['flag']} {self.language_options[lang_code]['name']}"
+        self.lang_menu.set(current_lang_text)
+        
+        # 保存用戶偏好
+        self.save_config()
+        
+        # 更新窗口標題
         self.root.title(self.lang["title"])
         
-        # 更新所有可本地化的UI元素
-        self.ui_elements["title_label"].config(text=self.lang["title"])
-        self.ui_elements["server_type_label"].config(text=self.lang["server_type"])
-        self.ui_elements["version_label"].config(text=self.lang["version"])
-        self.ui_elements["download_path_label"].config(text=self.lang["download_path"])
-        self.ui_elements["browse_btn"].config(text=self.lang["browse"])
-        self.ui_elements["server_name_label"].config(text=self.lang["server_name"])
-        self.ui_elements["memory_label"].config(text=self.lang["memory"])
-        self.ui_elements["eula_check"].config(text=self.lang["eula"])
-        self.ui_elements["eula_link"].config(text=self.lang["eula_link"])
-        self.ui_elements["download_btn"].config(text=self.lang["download_btn"])
-        self.ui_elements["cancel_btn"].config(text=self.lang["cancel_btn"])
-        self.ui_elements["copyright_label"].config(text=self.lang["copyright"])
+        # 更新所有UI元素文本
+        for key, widget in self.ui_elements.items():
+            if key in self.lang:
+                if isinstance(widget, (ttk.Label, ttk.Button, ttk.Checkbutton)):
+                    widget.config(text=self.lang[key])
+                elif isinstance(widget, ttk.Combobox):
+                    if "gamemode" in key:
+                        widget.config(values=[f"{i} - {self.lang['gamemodes'][i]}" for i in range(4)])
+                    elif "difficulty" in key:
+                        widget.config(values=[f"{i} - {self.lang['difficulties'][i]}" for i in range(4)])
+        
+        # 更新伺服器類型選項
+        self.server_type_combo.config(values=self.lang["server_type_options"])
+        self.selected_server_type.set(self.lang["server_type_options"][0])
+        
+        # 更新伺服器類型映射
+        self.server_types = {
+            self.lang["vanilla"]: self.get_vanilla_url,
+            self.lang["paper"]: self.get_paper_url,
+            self.lang["fabric"]: self.get_fabric_url
+        }
         
         # 更新狀態標籤
         if not self.downloading:
             self.status_label.config(text=self.lang["ready"])
+    
+    def set_default_path(self):
+        """設置預設下載路徑（桌面/Minecraft_Servers）"""
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        server_dir = os.path.join(desktop, "Minecraft_Servers")
+        self.download_path.set(server_dir)
 
     def browse_path(self):
         """選擇下載路徑"""
@@ -348,6 +634,15 @@ class MinecraftServerDownloader:
     def start_download_thread(self):
         """啟動下載線程"""
         if not self.downloading:
+            # 驗證端口
+            try:
+                port = int(self.server_port.get())
+                if not 1 <= port <= 65535:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror(self.lang["error"], self.lang["port_error"])
+                return
+                
             self.cancel_event.clear()
             Thread(target=self.download_server, daemon=True).start()
 
@@ -375,17 +670,17 @@ class MinecraftServerDownloader:
             server_type = self.selected_server_type.get()
             versions = []
 
-            if server_type == "Vanilla":
+            if server_type == self.lang["vanilla"]:
                 response = requests.get("https://launchermeta.mojang.com/mc/game/version_manifest.json", timeout=10)
                 data = response.json()
                 versions = [v['id'] for v in data['versions'] if v['type'] == 'release']
             
-            elif server_type == "Paper":
+            elif server_type == self.lang["paper"]:
                 response = requests.get("https://api.papermc.io/v2/projects/paper", timeout=10)
                 data = response.json()
                 versions = data['versions'][::-1]
             
-            elif server_type == "Fabric":
+            elif server_type == self.lang["fabric"]:
                 response = requests.get("https://meta.fabricmc.net/v2/versions/game", timeout=10)
                 data = response.json()
                 versions = [v['version'] for v in data]
@@ -467,11 +762,11 @@ class MinecraftServerDownloader:
         version = self.selected_version.get()
         
         try:
-            if server_type == "Vanilla":
+            if server_type == self.lang["vanilla"]:
                 return self.get_vanilla_url(version)
-            elif server_type == "Paper":
+            elif server_type == self.lang["paper"]:
                 return self.get_paper_url(version)
-            elif server_type == "Fabric":
+            elif server_type == self.lang["fabric"]:
                 return self.get_fabric_url(version)
         except Exception as e:
             self.show_error(self.lang["connection_error"].format(str(e)))
@@ -610,6 +905,21 @@ pause
         if self.eula.get():
             with open(os.path.join(server_dir, "eula.txt"), 'w') as f:
                 f.write("eula=true\n")
+
+        # 生成server.properties
+        properties_content = f"""#Minecraft server properties
+online-mode={str(self.online_mode.get()).lower()}
+server-port={self.server_port.get()}
+gamemode={self.gamemode.get().split('-')[0].strip()}
+difficulty={self.difficulty.get().split('-')[0].strip()}
+enable-command-block=true
+max-players=20
+view-distance=10
+motd={self.server_name.get()}
+"""
+        properties_path = os.path.join(server_dir, "server.properties")
+        with open(properties_path, 'w', encoding='utf-8') as f:
+            f.write(properties_content)
 
     def show_success_message(self):
         """顯示成功消息"""
